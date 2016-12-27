@@ -1,0 +1,6 @@
+flags: {}
+packages:
+- '.'
+- '../nvim-hs'
+- '../nvim-hs-contrib'
+resolver: lts-7.14

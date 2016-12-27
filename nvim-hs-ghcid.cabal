@@ -39,10 +39,10 @@ library
   -- other-modules:
   other-extensions:    OverloadedStrings, TemplateHaskell, DeriveGeneric, LambdaCase
   build-depends:       base >=4.6 && <5
-                     , nvim-hs >=0.0.6 && <1
+                     , nvim-hs >=0.1.0
+                     , nvim-hs-contrib >=0.1.0
                      , containers >=0.5
                      , yaml
-                     , nvim-hs-contrib >=0.0.6 && <1
                      , ghcid >=0.6.1
                      , resourcet
                      , bytestring
