@@ -21,8 +21,8 @@ import qualified Data.Map as Map
 
 plugin :: Neovim (StartupConfig NeovimConfig) () NeovimPlugin
 plugin = do
-    vim_command "sign define GhcidWarn text=>> texthl=Search"
-    vim_command "sign define GhcidErr text=!! texthl=ErrorMsg"
+    _ <- vim_command "sign define GhcidWarn text=>> texthl=Search"
+    _ <- vim_command "sign define GhcidErr text=!! texthl=ErrorMsg"
     wrapPlugin Plugin
         { exports = []
         , statefulExports =

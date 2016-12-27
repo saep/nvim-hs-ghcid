@@ -27,12 +27,11 @@ import           Language.Haskell.Ghcid       as Ghcid
 import           Control.Monad
 import qualified Control.Monad.Trans.Resource as Resource
 import qualified Data.ByteString              as BS
-import           Data.Char                    (toLower)
 import           Data.Either                  (rights)
-import           Data.List                    (isPrefixOf, isSuffixOf, groupBy, sort)
+import           Data.List                    (isSuffixOf, groupBy, sort)
 import           Data.Map                     (Map)
 import qualified Data.Map                     as Map
-import           Data.Maybe                   (fromMaybe, isJust, mapMaybe)
+import           Data.Maybe                   (mapMaybe)
 import           System.Directory
 import           System.FilePath
 
@@ -93,9 +92,9 @@ ghcidStart copts = do
                         "Specify the command to execute (e.g. \"ghci\")."
                         (Just (cmd s))
 
-                let s = ProjectSettings d c
+                let s' = ProjectSettings d c
                 whenM (yesOrNo "Save settings to file?") .
-                    liftIO . BS.writeFile (d </> "ghcid.yaml") $ encode s
+                    liftIO . BS.writeFile (d </> "ghcid.yaml") $ encode s'
                 startOrReload s
 
 
@@ -104,7 +103,7 @@ ghcidStart copts = do
 startOrReload :: ProjectSettings -> Neovim r (GhcidState r) ()
 startOrReload s@(ProjectSettings d c) = Map.lookup d <$> gets startedSessions >>= \case
     Nothing -> do
-        (g, ls) <- liftIO $ startGhci c (Just d) False
+        (g, ls) <- liftIO $ startGhci c (Just d) (\_ _ -> return ())
         applyQuickfixActions $ loadToQuickfix ls
         void $ vim_command "cwindow"
         ra <- addAutocmd "BufWritePost" def (startOrReload s) >>= \case
@@ -119,7 +118,7 @@ startOrReload s@(ProjectSettings d c) = Map.lookup d <$> gets startedSessions >>
 
         modifyStartedSessions $ Map.insert d (g,ra >> liftIO (stopGhci g))
 
-    Just (ghci, ra) -> do
+    Just (ghci, _) -> do
         applyQuickfixActions =<< loadToQuickfix <$> liftIO (reload ghci)
         void $ vim_command "cwindow"
 
@@ -136,7 +135,7 @@ applyQuickfixActions qs = do
 
 
 placeSigns :: [QuickfixListItem String] -> Neovim r st ()
-placeSigns qs = forM_ (zip [1..] qs) $ \(i, q) -> case (lnumOrPattern q, bufOrFile q) of
+placeSigns qs = forM_ (zip [(1::Integer)..] qs) $ \(i, q) -> case (lnumOrPattern q, bufOrFile q) of
     (Right _, _) ->
         -- Patterns not handled as they are not produced
         return ()
