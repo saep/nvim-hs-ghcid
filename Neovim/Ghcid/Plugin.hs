@@ -18,6 +18,7 @@ module Neovim.Ghcid.Plugin
 import           Data.Yaml
 import           GHC.Generics
 import           Neovim
+import           Neovim.BuildTool
 import           Neovim.Quickfix              as Q
 import           Neovim.User.Choice           (yesOrNo)
 import           Neovim.User.Input
@@ -25,14 +26,15 @@ import           Neovim.User.Input
 import           Language.Haskell.Ghcid       as Ghcid
 
 import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Maybe
 import qualified Control.Monad.Trans.Resource as Resource
 import qualified Data.ByteString              as BS
 import           Data.Either                  (rights)
-import           Data.List                    (isSuffixOf, groupBy, sort)
+import           Data.List                    (groupBy, sort)
 import           Data.Map                     (Map)
 import qualified Data.Map                     as Map
 import           Data.Maybe                   (mapMaybe)
-import           System.Directory
 import           System.FilePath
 
 
@@ -42,7 +44,8 @@ data ProjectSettings = ProjectSettings
         -- ^ Project directory from which ghcid can be started successfully.
         --
         , cmd     :: String
-        -- ^ Command to start a ghci session (usually @cabal repl@).
+        -- ^ Command to start a ghci session (usually @cabal repl@ or
+        -- @stack ghci@).
         }
     deriving (Eq, Ord, Show, Generic)
 
@@ -77,7 +80,7 @@ modifyStartedSessions f = modify $ \s -> s { startedSessions = f (startedSession
 ghcidStart :: CommandArguments -> Neovim r (GhcidState r) ()
 ghcidStart copts = do
     currentBufferPath <- errOnInvalidResult $ vim_call_function "expand" [ObjectBinary "%:p:h"]
-    liftIO (determineProjectSettings currentBufferPath) >>= \case
+    liftIO (determineProjectSettings' currentBufferPath) >>= \case
         Nothing -> void $
             yesOrNo "Could not determine project settings. This plugin needs a project with a .cabal file to work."
         Just s -> case bang copts of
@@ -196,15 +199,9 @@ loadToQuickfix = dropWarningsIfErrorsArePresent . mapMaybe f
             xs' -> xs'
 
 
--- | Calculate the list of all parent directories for the given directory. This
--- function also returns the initially specified directory.
-allParentDirectories :: FilePath -> [FilePath]
-allParentDirectories dir
-    | parentDir == dir = [dir]
-    | otherwise = dir : allParentDirectories parentDir
-  where
-    parentDir = takeDirectory dir
-
+maybePluginConfig :: MonadIO io => Directory -> io (Maybe BuildTool)
+maybePluginConfig d = fmap (const Custom)
+    <$> mkFile (Just d) "ghcid.yaml"
 
 -- | Determine project settings for a directory.
 --
@@ -220,30 +217,16 @@ allParentDirectories dir
 -- Note that 'ghcidStart' prompts for confirmation unless you prepend a bang.
 -- So, if you want to use your preferred settings, simply save them to the
 -- @ghcid.yaml@ file and you're done.
-determineProjectSettings :: FilePath -> IO (Maybe ProjectSettings)
-determineProjectSettings dir = do
-    msum <$> sequence [ customSettings, stack, plainCabal, cabalSandbox ]
-  where
-    searchDirectories = allParentDirectories dir
+determineProjectSettings' :: FilePath -> IO (Maybe ProjectSettings)
+determineProjectSettings' dir = runMaybeT $ do
+    ds <- MaybeT $ fmap thisAndParentDirectories <$> mkDirectory dir
+    buildTool <- MaybeT $ determineProjectSettings (maybePluginConfig : defaultProjectIdentifiers) ds
+    case buildTool of
+      (Stack, d) -> return $ ProjectSettings (getDirectory d) "stack ghci"
+      (Cabal _, d) -> return $ ProjectSettings (getDirectory d) "cabal repl"
+      (Custom, d) -> do
+          f <- MaybeT $ mkFile (Just d) "ghcid.yaml"
+          MaybeT $ decode <$> BS.readFile (getFile f)
+      _ -> MaybeT $ return Nothing
 
-    cabalSandbox = fmap (\p -> (ProjectSettings (takeDirectory p) "cabal repl"))
-        <$> findFile searchDirectories "cabal.sandbox.config"
-
-    stack = fmap (\p -> (ProjectSettings (takeDirectory p) "stack ghci"))
-        <$> findFile searchDirectories "stack.yaml"
-
-    plainCabal = fmap msum <$> forM searchDirectories $ \d -> do
-        filter (".cabal" `isSuffixOf`) <$> getDirectoryContents d >>= \case
-            [x] -> do
-                isDir <- doesDirectoryExist (d </> x) -- ignore directoroies like /home/user/.cabal
-                return $ if isDir then Nothing else Just (ProjectSettings d "cabal repl")
-            _ ->
-                return Nothing
-
-    customSettings = findFile searchDirectories "ghcid.yaml" >>= \case
-        Just cfg ->
-            decode <$> BS.readFile cfg
-
-        Nothing ->
-            return Nothing
 

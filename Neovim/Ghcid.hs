@@ -26,10 +26,14 @@ plugin = do
     wrapPlugin Plugin
         { exports = []
         , statefulExports =
-            [ ((), GhcidState Map.empty [],
-                [ $(command' 'ghcidStart) ["async", "!"]
-                , $(command' 'ghcidStop) ["async"]
-                , $(command' 'ghcidRestart) ["async"]
-                ])
+            [ StatefulFunctionality
+                { readOnly = ()
+                , writable = GhcidState Map.empty []
+                , functionalities =
+                    [ $(command' 'ghcidStart) ["async", "!"]
+                    , $(command' 'ghcidStop) ["async"]
+                    , $(command' 'ghcidRestart) ["async"]
+                    ]
+                }
             ]
         }
