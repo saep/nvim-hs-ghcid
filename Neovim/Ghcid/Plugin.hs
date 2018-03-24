@@ -36,6 +36,8 @@ import           Data.Map                     (Map)
 import qualified Data.Map                     as Map
 import           Data.Maybe                   (mapMaybe)
 import           System.FilePath
+import           UnliftIO.STM
+import           UnliftIO.Exception           (SomeException(..), catch)
 
 
 -- | Simple data type containing a few information on how to start ghcid.
@@ -56,20 +58,24 @@ instance ToJSON ProjectSettings
 instance FromJSON ProjectSettings
 
 
-data GhcidState r = GhcidState
-    { startedSessions :: Map FilePath (Ghci, Neovim r (GhcidState r) ())
+data GhcidEnv = GhcidEnv
+    { startedSessions :: TVar (Map FilePath (Ghci, Neovim GhcidEnv ()))
     -- ^ A map from the root directory (see 'rootDir') to a 'Ghci' session and a
     -- release function which unregisters some autocmds and stops the ghci
     -- session.
 
-    , quickfixItems   :: [QuickfixListItem String]
+    , quickfixItems   :: TVar [QuickfixListItem String]
     }
 
 
-modifyStartedSessions :: (Map FilePath (Ghci, Neovim r (GhcidState r) ())
-                          -> Map FilePath (Ghci, Neovim r (GhcidState r) ()))
-                      -> Neovim r (GhcidState r) ()
-modifyStartedSessions f = modify $ \s -> s { startedSessions = f (startedSessions s) }
+initGhcidEnv :: MonadIO m => m GhcidEnv
+initGhcidEnv = GhcidEnv <$> newTVarIO mempty <*> newTVarIO mempty
+
+modifyStartedSessions :: (Map FilePath (Ghci, Neovim GhcidEnv ())
+                          -> Map FilePath (Ghci, Neovim GhcidEnv ()))
+                      -> Neovim GhcidEnv ()
+modifyStartedSessions f = do
+    atomically . flip modifyTVar' f =<< asks startedSessions
 
 
 -- | Start or update a ghcid session.
@@ -77,7 +83,7 @@ modifyStartedSessions f = modify $ \s -> s { startedSessions = f (startedSession
 -- This will call 'determineProjectSettings' and ask you to confirm or overwrite
 -- its proposed settings. If you prepend a bang, it acts as if you have
 -- confirmed all settings.
-ghcidStart :: CommandArguments -> Neovim r (GhcidState r) ()
+ghcidStart :: CommandArguments -> Neovim GhcidEnv ()
 ghcidStart copts = do
     currentBufferPath <- errOnInvalidResult $ vim_call_function "expand" [ObjectBinary "%:p:h"]
     liftIO (determineProjectSettings' currentBufferPath) >>= \case
@@ -103,33 +109,37 @@ ghcidStart copts = do
 
 -- | Start a new ghcid session or reload the modules to update the quickfix
 -- list.
-startOrReload :: ProjectSettings -> Neovim r (GhcidState r) ()
-startOrReload s@(ProjectSettings d c) = Map.lookup d <$> gets startedSessions >>= \case
-    Nothing -> do
-        (g, ls) <- liftIO $ startGhci c (Just d) (\_ _ -> return ())
-        applyQuickfixActions $ loadToQuickfix ls
-        void $ vim_command "cwindow"
-        ra <- addAutocmd "BufWritePost" def (startOrReload s) >>= \case
-            Nothing ->
-                return $ return ()
+startOrReload :: ProjectSettings -> Neovim GhcidEnv ()
+startOrReload s@(ProjectSettings d c) = do
+    sessions <- atomically . readTVar =<< asks startedSessions
+    case Map.lookup d sessions of
+        Nothing -> do
+            (g, ls) <- liftIO (startGhci c (Just d) (\_ _ -> return ()))
+                `catch` \(SomeException e) ->  err . pretty $ "Failed to start ghcid session: " <> show e
+            applyQuickfixActions $ loadToQuickfix ls
+            void $ vim_command "cwindow"
+            ra <- addAutocmd "BufWritePost" def (startOrReload s) >>= \case
+                Nothing ->
+                    return $ return ()
 
-            Just (Left a) ->
-                return a
+                Just (Left a) ->
+                    return a
 
-            Just (Right rk) ->
-                return $ Resource.release rk
+                Just (Right rk) ->
+                    return $ Resource.release rk
 
-        modifyStartedSessions $ Map.insert d (g,ra >> liftIO (stopGhci g))
+            modifyStartedSessions $ Map.insert d (g,ra >> liftIO (stopGhci g))
 
-    Just (ghci, _) -> do
-        applyQuickfixActions =<< loadToQuickfix <$> liftIO (reload ghci)
-        void $ vim_command "cwindow"
+        Just (ghci, _) -> do
+            applyQuickfixActions =<< loadToQuickfix <$> liftIO (reload ghci)
+            void $ vim_command "cwindow"
 
 
-applyQuickfixActions :: [QuickfixListItem String] -> Neovim r (GhcidState r) ()
+applyQuickfixActions :: [QuickfixListItem String] -> Neovim GhcidEnv ()
 applyQuickfixActions qs = do
-    fqs <- (nub' . rights . map bufOrFile) <$> gets quickfixItems
-    modify $ \s -> s { quickfixItems = qs }
+    qfItems <- asks quickfixItems
+    fqs <- (nub' . rights . map bufOrFile) <$> atomically (readTVar qfItems)
+    atomically $ modifyTVar' qfItems (const qs)
     forM_ fqs $ \f -> void . vim_command $ "sign unplace * file=" <> f
     setqflist qs Replace
     placeSigns qs
@@ -137,7 +147,7 @@ applyQuickfixActions qs = do
     nub' = map head . groupBy (==) . sort
 
 
-placeSigns :: [QuickfixListItem String] -> Neovim r st ()
+placeSigns :: [QuickfixListItem String] -> Neovim env ()
 placeSigns qs = forM_ (zip [(1::Integer)..] qs) $ \(i, q) -> case (lnumOrPattern q, bufOrFile q) of
     (Right _, _) ->
         -- Patterns not handled as they are not produced
@@ -160,10 +170,11 @@ placeSigns qs = forM_ (zip [(1::Integer)..] qs) $ \(i, q) -> case (lnumOrPattern
             ]
 
 -- | Stop a ghcid session associated to the currently active buffer.
-ghcidStop :: CommandArguments -> Neovim r (GhcidState r) ()
+ghcidStop :: CommandArguments -> Neovim GhcidEnv ()
 ghcidStop _ = do
     d <- errOnInvalidResult $ vim_call_function "expand" [ObjectBinary "%:p:h"]
-    Map.lookupLE d <$> gets startedSessions >>= \case
+    sessions <- atomically .readTVar =<< asks startedSessions
+    case Map.lookupLE d sessions of
         Nothing ->
             return ()
         Just (p,(_, releaseAction)) -> do
@@ -172,7 +183,7 @@ ghcidStop _ = do
 
 
 -- | Same as @:GhcidStop@ followed by @:GhcidStart!@. Note the bang!
-ghcidRestart :: CommandArguments -> Neovim r (GhcidState r) ()
+ghcidRestart :: CommandArguments -> Neovim GhcidEnv ()
 ghcidRestart _ = do
     ghcidStop def
     ghcidStart def { bang = Just True }

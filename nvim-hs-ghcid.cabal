@@ -1,5 +1,5 @@
 name:                nvim-hs-ghcid
-version:             0.2.1
+version:             1.0.0.0
 synopsis:            Neovim plugin that runs ghcid to update the quickfix list
 description:         This plugin uses the nvim-hs plugin backend for neovim and
                      fills the quickfix list on file-saves with the errors and
@@ -39,8 +39,8 @@ library
   -- other-modules:
   other-extensions:    OverloadedStrings, TemplateHaskell, DeriveGeneric, LambdaCase
   build-depends:       base >=4.6 && <5
-                     , nvim-hs >=0.2.0
-                     , nvim-hs-contrib >=0.2.0
+                     , nvim-hs >=1.0 && <2
+                     , nvim-hs-contrib >=1.0 && <2
                      , containers >=0.5
                      , yaml
                      , ghcid >=0.6.1
@@ -49,5 +49,6 @@ library
                      , directory
                      , filepath
                      , transformers
+                     , unliftio
   -- hs-source-dirs:
   default-language:    Haskell2010

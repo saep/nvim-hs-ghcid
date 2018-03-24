@@ -17,23 +17,17 @@ module Neovim.Ghcid
 import Neovim
 
 import Neovim.Ghcid.Plugin
-import qualified Data.Map as Map
 
-plugin :: Neovim (StartupConfig NeovimConfig) () NeovimPlugin
+plugin :: Neovim (StartupConfig NeovimConfig) NeovimPlugin
 plugin = do
     _ <- vim_command "sign define GhcidWarn text=>> texthl=Search"
     _ <- vim_command "sign define GhcidErr text=!! texthl=ErrorMsg"
+    env <- initGhcidEnv
     wrapPlugin Plugin
-        { exports = []
-        , statefulExports =
-            [ StatefulFunctionality
-                { readOnly = ()
-                , writable = GhcidState Map.empty []
-                , functionalities =
-                    [ $(command' 'ghcidStart) ["async", "!"]
-                    , $(command' 'ghcidStop) ["async"]
-                    , $(command' 'ghcidRestart) ["async"]
-                    ]
-                }
+        { environment = env
+        , exports =
+            [ $(command' 'ghcidStart) ["async", "!"]
+            , $(command' 'ghcidStop) ["async"]
+            , $(command' 'ghcidRestart) ["async"]
             ]
         }
