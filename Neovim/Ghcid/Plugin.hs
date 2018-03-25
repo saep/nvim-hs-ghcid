@@ -196,7 +196,7 @@ loadToQuickfix = dropWarningsIfErrorsArePresent . mapMaybe f
         Just $ (quickfixListItem
                     ((Right . loadFile) m)
                     ((Left . fst . loadFilePos) m))
-                    { col = Just $ ((snd . loadFilePos) m, True)
+                    { col = VisualColumn . snd $ loadFilePos m
                     , Q.text = (unlines . loadMessage) m
                     , errorType = case loadSeverity m of
                         Ghcid.Warning -> Q.Warning
