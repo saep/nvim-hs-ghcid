@@ -237,7 +237,7 @@ determineProjectSettings' dir = runMaybeT $ do
       (Cabal _, d) -> return $ ProjectSettings (getDirectory d) "cabal repl"
       (Custom, d) -> do
           f <- MaybeT $ mkFile (Just d) "ghcid.yaml"
-          MaybeT $ decode <$> BS.readFile (getFile f)
+          MaybeT $ decodeThrow <$> BS.readFile (getFile f)
       _ -> MaybeT $ return Nothing
 
 
