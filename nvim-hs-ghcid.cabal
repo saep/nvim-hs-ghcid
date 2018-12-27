@@ -34,16 +34,24 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+executable nvim-hs-ghcid
+  main-is:             Main.hs
+  hs-source-dirs:       executable
+  default-language:     Haskell2010
+  build-depends:        base >=4.9 && <5, nvim-hs, nvim-hs-ghcid
+  ghc-options:          -threaded -rtsopts -with-rtsopts=-N
+
 library
   exposed-modules:     Neovim.Ghcid, Neovim.Ghcid.Plugin
   -- other-modules:
-  other-extensions:    OverloadedStrings, TemplateHaskell, DeriveGeneric, LambdaCase
-  build-depends:       base >=4.6 && <5
-                     , nvim-hs >=1.0 && <2
-                     , nvim-hs-contrib >=1.0 && <2
+  default-extensions:  OverloadedStrings, LambdaCase
+  other-extensions:    TemplateHaskell, DeriveGeneric
+  build-depends:       base >=4.9 && <5
+                     , nvim-hs >=2 && <3
+                     , nvim-hs-contrib >=2.0 && <3
                      , containers >=0.5
                      , yaml
-                     , ghcid >=0.6.1
+                     , ghcid >=0.6.1 && <1
                      , resourcet
                      , bytestring
                      , directory

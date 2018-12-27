@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {- |
 Module      :  Neovim.Ghcid
@@ -18,7 +17,7 @@ import Neovim
 
 import Neovim.Ghcid.Plugin
 
-plugin :: Neovim (StartupConfig NeovimConfig) NeovimPlugin
+plugin :: Neovim () NeovimPlugin
 plugin = do
     _ <- vim_command "sign define GhcidWarn text=>> texthl=Search"
     _ <- vim_command "sign define GhcidErr text=!! texthl=ErrorMsg"

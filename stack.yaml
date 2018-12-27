@@ -1,7 +1,11 @@
 flags: {}
 packages:
 - '.'
-resolver: lts-8.10
-extra-deps:
-- nvim-hs-contrib-0.2.0
-- nvim-hs-0.2.0
+resolver: lts-12.25
+extra-deps: []
+
+nix:
+  pure: false
+  packages:
+    - zlib
+    - neovim

@@ -1,6 +1,4 @@
 {-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {- |
 Module      :  Neovim.Ghcid.Plugin
 Description :  Ghcid quickfix integration plugin
@@ -32,12 +30,12 @@ import qualified Control.Monad.Trans.Resource as Resource
 import qualified Data.ByteString              as BS
 import           Data.Either                  (rights)
 import           Data.List                    (groupBy, sort)
-import           Data.Map                     (Map)
-import qualified Data.Map                     as Map
+import           Data.Map.Strict              (Map)
+import qualified Data.Map.Strict              as Map
 import           Data.Maybe                   (mapMaybe)
 import           System.FilePath
+import           UnliftIO.Exception           (SomeException (..), catch)
 import           UnliftIO.STM
-import           UnliftIO.Exception           (SomeException(..), catch)
 
 
 -- | Simple data type containing a few information on how to start ghcid.
@@ -160,7 +158,7 @@ placeSigns qs = forM_ (zip [(1::Integer)..] qs) $ \(i, q) -> case (lnumOrPattern
 
     (Left lnum, Right f) -> do
         let signType = case errorType q of
-                Q.Error -> "GhcidErr"
+                Q.Error   -> "GhcidErr"
                 Q.Warning -> "GhcidWarn"
 
         -- TODO What if the file name contains spaces?
@@ -206,7 +204,7 @@ loadToQuickfix = dropWarningsIfErrorsArePresent . mapMaybe f
 
     dropWarningsIfErrorsArePresent xs =
         case filter ((== Q.Error) . errorType) xs of
-            [] -> xs
+            []  -> xs
             xs' -> xs'
 
 
