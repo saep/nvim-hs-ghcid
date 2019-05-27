@@ -14,6 +14,7 @@ module Neovim.Ghcid
     where
 
 import Neovim
+import Neovim.API.String
 
 import Neovim.Ghcid.Plugin
 

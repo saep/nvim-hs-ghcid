@@ -16,6 +16,7 @@ module Neovim.Ghcid.Plugin
 import           Data.Yaml
 import           GHC.Generics
 import           Neovim
+import           Neovim.API.String
 import           Neovim.BuildTool
 import           Neovim.Quickfix              as Q
 import           Neovim.User.Choice           (yesOrNo)
@@ -83,7 +84,7 @@ modifyStartedSessions f = do
 -- confirmed all settings.
 ghcidStart :: CommandArguments -> Neovim GhcidEnv ()
 ghcidStart copts = do
-    currentBufferPath <- errOnInvalidResult $ vim_call_function "expand" [ObjectBinary "%:p:h"]
+    currentBufferPath <- fromObjectUnsafe <$> vim_call_function "expand" [ObjectBinary "%:p:h"]
     liftIO (determineProjectSettings' currentBufferPath) >>= \case
         Nothing -> void $
             yesOrNo "Could not determine project settings. This plugin needs a project with a .cabal file to work."
@@ -116,7 +117,7 @@ startOrReload s@(ProjectSettings d c) = do
                 `catch` \(SomeException e) ->  err . pretty $ "Failed to start ghcid session: " <> show e
             applyQuickfixActions $ loadToQuickfix ls
             void $ vim_command "cwindow"
-            ra <- addAutocmd "BufWritePost" def (startOrReload s) >>= \case
+            ra <- addAutocmd "BufWritePost" Sync def (startOrReload s) >>= \case
                 Nothing ->
                     return $ return ()
 
@@ -170,7 +171,7 @@ placeSigns qs = forM_ (zip [(1::Integer)..] qs) $ \(i, q) -> case (lnumOrPattern
 -- | Stop a ghcid session associated to the currently active buffer.
 ghcidStop :: CommandArguments -> Neovim GhcidEnv ()
 ghcidStop _ = do
-    d <- errOnInvalidResult $ vim_call_function "expand" [ObjectBinary "%:p:h"]
+    d <- fromObjectUnsafe <$> vim_call_function "expand" [ObjectBinary "%:p:h"]
     sessions <- atomically .readTVar =<< asks startedSessions
     case Map.lookupLE d sessions of
         Nothing ->

@@ -1,8 +1,10 @@
 flags: {}
 packages:
 - '.'
-resolver: lts-12.25
+resolver: nightly-2019-05-26
 extra-deps: []
+
+allow-newer: true
 
 nix:
   pure: false
