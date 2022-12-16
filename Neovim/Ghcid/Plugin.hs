@@ -139,7 +139,7 @@ applyQuickfixActions qs = do
     qfItems <- asks quickfixItems
     fqs <- (nub' . rights . map bufOrFile) <$> atomically (readTVar qfItems)
     atomically $ modifyTVar' qfItems (const qs)
-    forM_ fqs $ \f -> void . vim_command $ "sign unplace * file=" <> f
+    forM_ fqs $ \f -> void $ vim_command $ "sign unplace * file=" <> f
     setqflist qs Replace
     placeSigns qs
   where
@@ -163,7 +163,7 @@ placeSigns qs = forM_ (zip [(1::Integer)..] qs) $ \(i, q) -> case (lnumOrPattern
                 Q.Warning -> "GhcidWarn"
 
         -- TODO What if the file name contains spaces?
-        void . vim_command $ unwords
+        void $ vim_command $ unwords
             [ "sign place", show i, "line=" <> show lnum
             , "name=" <> signType, "file=" <> f
             ]
