@@ -1,5 +1,5 @@
 name:                nvim-hs-ghcid
-version:             2.0.1.0
+version:             2.0.1.1
 synopsis:            Neovim plugin that runs ghcid to update the quickfix list
 description:         This plugin uses the nvim-hs plugin backend for neovim and
                      fills the quickfix list on file-saves with the errors and
