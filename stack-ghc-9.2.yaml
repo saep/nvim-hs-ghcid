@@ -1,0 +1,13 @@
+flags: {}
+packages:
+- '.'
+resolver: lts-20.4
+extra-deps: []
+
+allow-newer: true
+
+nix:
+  pure: false
+  packages:
+    - zlib
+    - neovim

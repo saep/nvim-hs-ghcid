@@ -1,13 +1,1 @@
-flags: {}
-packages:
-- '.'
-resolver: nightly-2019-05-26
-extra-deps: []
-
-allow-newer: true
-
-nix:
-  pure: false
-  packages:
-    - zlib
-    - neovim
+stack-ghc-9.4.yaml
