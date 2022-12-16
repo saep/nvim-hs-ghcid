@@ -116,16 +116,9 @@ startOrReload s@(ProjectSettings d c) = do
                     `catch` \(SomeException e) -> err . pretty $ "Failed to start ghcid session: " <> show e
             applyQuickfixActions $ loadToQuickfix ls
             void $ vim_command "cwindow"
-            ra <-
-                addAutocmd "BufWritePost" Sync def (startOrReload s) >>= \case
-                    Nothing ->
-                        return $ return ()
-                    Just (Left a) ->
-                        return a
-                    Just (Right rk) ->
-                        return $ Resource.release rk
+            addAutocmd "BufWritePost" Sync def (startOrReload s) 
 
-            modifyStartedSessions $ Map.insert d (g, ra >> liftIO (stopGhci g))
+            modifyStartedSessions $ Map.insert d (g, liftIO (stopGhci g))
         Just (ghci, _) -> do
             applyQuickfixActions =<< loadToQuickfix <$> liftIO (reload ghci)
             void $ vim_command "cwindow"
