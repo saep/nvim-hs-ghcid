@@ -1,0 +1,13 @@
+flags: {}
+packages:
+- '.'
+resolver: nightly-2022-12-16
+extra-deps: []
+
+allow-newer: true
+
+nix:
+  pure: false
+  packages:
+    - zlib
+    - neovim
